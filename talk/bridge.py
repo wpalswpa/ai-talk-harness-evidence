@@ -203,11 +203,11 @@ class Member:
                 # 로그인으로 인증하므로 키가 필요 없다.
                 cmd, cwd=workdir, env=_env(strip_secrets=True),
                 stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                # stdin 을 반드시 닫는다. 열어 두면 codex 가
-                # "Reading additional input from stdin..." 배너를 내고 입력
-                # 대기로 끝난 것으로 보이며(재현 없음), 그 배너가 발언으로 기록됐다.
-                # 실측: 수집 trace 에서 Codex 의 stderr 배너가 세 턴
-                # 연속 '발언'으로 남아 repeat_ratio 가 1.00 이 됐다.
+                # stdin 을 반드시 닫는다. 서버의 stdin 을 물려받으면 입력을
+                # 끝까지 읽는 CLI 가 시간 초과까지 멈춘다(가짜 CLI 로 재현,
+                # tests/test_cli_runtime.py). 수집 trace 의 실패 배너는 이것이
+                # 아니라 사용 한도 초과였고, 발언으로 남은 원인은 parse 였다
+                # (docs/decisions/001).
                 stdin=subprocess.DEVNULL,
                 text=True, encoding="utf-8", errors="replace",
             )
