@@ -22,7 +22,7 @@
 ## 고친 것
 
 - 모든 CLI 참여자가 `stdin=subprocess.DEVNULL`로 실행한다(`test_all_cli_members_close_stdin`).
-- `stderr`는 발언으로 돌려주지 않는다. 본문이 비면 빈 결과와 실패로 처리한다(`test_codex_failure_does_not_become_speech`, `test_codex_real_output_still_returned`).
+- `stderr`는 발언으로 돌려주지 않는다. 본문이 비면 `stderr` 첫 줄을 담은 대괄호 오류 표시를 돌려주고(`is_error`로 구분), 서버는 이를 발언으로 기록하지 않는다. 서버 코드는 이 저장소에 없다(`test_codex_failure_does_not_become_speech`, `test_codex_real_output_still_returned`).
 - 이미 쌓인 기록은 고칠 수 없어 분석에서 걸러 냈다(원본의 `is_contaminated()`).
 
 ## 한계
