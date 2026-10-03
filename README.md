@@ -27,7 +27,7 @@ python -m pytest -q      # 69 passed (Python 3.12, 외부 패키지 없음)
 | 반환형을 바꾸지 않는 측정 슬롯, 미측정과 0의 구분 | [`talk/telemetry.py`](talk/telemetry.py) |
 | 결정의 원본과 보정본을 둘 다 저장하는 이유 | [`talk/store.py`](talk/store.py) `add_decision` |
 | CLI 입출력 처리(stdin 차단, 오류 출력과 발언의 분리) | [`talk/bridge.py`](talk/bridge.py) CLI 참여자의 `ask`, `Codex.parse` |
-| 기록 오염 38%의 원인과 수정 | [docs/decisions/001](docs/decisions/001-failure-banner-contamination.md) |
+| 실패 배너가 발언으로 기록된 원인과 수정 | [docs/decisions/001](docs/decisions/001-failure-banner-contamination.md) |
 | 중단 시점 자동화를 실험으로 기각한 판단 | [docs/decisions/002](docs/decisions/002-stop-automation-no-go.md) |
 
 ## 핵심 설계
@@ -60,7 +60,7 @@ python -m pytest -q      # 69 passed (Python 3.12, 외부 패키지 없음)
 
 - 사회자 결정 78건(LLM 59, 규칙 19). 표시 이름 복구 18, 사회자 호출 실패 3, 파싱 실패 3, 빈 지시 3, 규칙 대체 3.
 - 모델 호출 364건. 평균 지연은 사회자 판정 0.95초, 의논 발언 20.0초, 결과물 작성 61.4초. 여러 과제·참여자가 섞인 사용 기록 평균이며 성능 비교 실험이 아닙니다.
-- 분석용 대화 기록 21건 중 8건(38%)이 CLI 실패 배너로 오염돼 있었고, 원인 2개를 고친 뒤 기존 기록은 걸러 냈습니다(decisions/001).
+- 수집 실행 대화 8개에서 Codex 발언 10회 중 8회가 CLI 실패 배너로 저장돼 있었고, 이를 읽은 사회자 판정 기록 21건 중 6건을 걸러 15건으로 분석했습니다. 원인 2개를 고쳤습니다(decisions/001).
 - 중단 시점 학습 모델(로지스틱 회귀)은 라벨 10건에서 정확도 50%로 "항상 멈춤" 60%를 넘지 못해, 만들어 평가했지만 운영 판정에는 도입하지 않았습니다(decisions/002).
 
 ## 이 설계가 막지 못하는 것
@@ -72,4 +72,4 @@ python -m pytest -q      # 69 passed (Python 3.12, 외부 패키지 없음)
 
 ## 담당과 도구
 
-문제 정의, 구조, 측정 방법, 판정 기준(decisions/002의 사전 규칙)은 본인이 정했고, 코드와 검사 작성에는 Claude Code와 Codex를 썼습니다. 이 저장소의 파일은 원본에서 그대로 복사했고, 위에 적은 검사 1개 제거 외에는 고치지 않았습니다. 라이선스는 MIT입니다.
+문제 정의, 구조, 측정 방법, 판정 기준(decisions/002의 사전 규칙)은 본인이 정했고, 코드와 검사 작성에는 Claude Code와 Codex를 썼습니다. 이 저장소의 파일은 원본에서 그대로 복사했고, 위에 적은 검사 1개 제거와 `bridge.py` 주석 1곳(원인을 추정으로 표기) 외에는 고치지 않았습니다. 라이선스는 MIT입니다.
