@@ -16,6 +16,8 @@ Claude Code와 Codex 세션은 서로의 맥락을 모릅니다. 한쪽에서 �
 python -m pytest -q      # 73 passed (Python 3.12, pytest 외 외부 패키지 없음)
 ```
 
+같은 검사를 GitHub Actions가 push마다 Ubuntu와 Windows에서 실행합니다([`.github/workflows/tests.yml`](.github/workflows/tests.yml)).
+
 검사는 API 키, CLI 로그인, 네트워크 없이 돕니다. `bridge.py`는 실제 CLI와 API를 부르는 코드입니다. 검사는 호출 계약(인자 이름, 반환형)을 보고, CLI 입출력 경로는 실제 CLI 대신 가짜 CLI 프로그램을 진짜 하위 프로세스로 띄워 확인합니다(`tests/test_cli_runtime.py`).
 
 ## 무엇을 보면 되나
