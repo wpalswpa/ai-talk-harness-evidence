@@ -1,5 +1,14 @@
 # Claude Code와 Codex를 한 대화방에 넣은 실행 하네스
 
+[![tests](https://github.com/wpalswpa/ai-talk-harness-evidence/actions/workflows/tests.yml/badge.svg)](https://github.com/wpalswpa/ai-talk-harness-evidence/actions/workflows/tests.yml)
+
+| 한눈에 | |
+|---|---|
+| 만든 것 | 두 CLI(Claude Code·Codex)와 API 모델을 하위 프로세스로 묶고, 사회자 LLM의 JSON 판정으로 차례·종료를 정하는 실행 하네스(개인 도구) |
+| 고친 경계 | CLI 실패 출력이 정상 발언으로 저장되던 경로(Codex 발언 10회 중 8회) → 오류 경로로 분리, 가짜 CLI를 실제 프로세스로 띄운 런타임 시험 4개로 고정. 판정은 원문(raw)과 실제 쓴 값(effective)을 함께 저장, 못 잰 지연은 0이 아니라 비어 있음으로 기록 |
+| 자동화 판단 | 의논 종료를 학습 모델에 맡길지 실험했고, 상수 기준선(60%)을 넘지 못해(50%) 도입하지 않음([결정 002](docs/decisions/002-stop-automation-no-go.md)) |
+| 확인 방법 | `python -m pytest -q` → 73 passed, GitHub Actions Ubuntu·Windows |
+
 Claude Code와 Codex 세션은 서로의 맥락을 모릅니다. 한쪽에서 정한 것을 다른 쪽에 복사해 붙이는 일이 반복돼, 두 CLI와 API 모델을 한 대화방에 넣고 사회자 LLM이 "다음에 누가 말할지·무엇을 시킬지·끝낼지"를 JSON으로 판정하게 했습니다. 이 저장소는 그 개인 프로젝트(2026-09-21~25)의 핵심 모듈과 회귀 검사입니다. 원본 저장소는 비공개이고, 이 저장소에는 포트폴리오에서 설명한 부분만 그대로 옮겼습니다. 웹 서버·화면·대화 기록(SQLite)은 넣지 않았습니다.
 
 ## 어떤 문제였나
