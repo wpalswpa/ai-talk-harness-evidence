@@ -30,6 +30,7 @@ BANNER = ("Reading additional input from stdin...\n"
 
 FAKE_CLI = textwrap.dedent('''
     import os, sys, time
+    sys.stdout.reconfigure(encoding="utf-8")  # 실제 CLI처럼 UTF-8로 쓴다(영문 Windows 기본값은 cp1252)
     mode = os.environ.get("FAKE_CLI_MODE", "ok")
     if mode == "ok":
         print("OpenAI Codex v0.155.1\\n--------\\ncodex\\n실제 답변입니다\\ntokens used\\n123")
