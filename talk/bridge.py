@@ -149,11 +149,22 @@ class Inbox:
             return len(self._q)
 
 
+def _text(data: bytes | None) -> str:
+    """바이트 출력을 텍스트 모드와 같게 읽는다(UTF-8, 줄바꿈은 LF로 맞춤)."""
+    s = (data or b"").decode("utf-8", errors="replace")
+    return s.replace("\r\n", "\n").replace("\r", "\n")
+
+
 class Member:
     """한 참여자. CLI 하나를 감싼다."""
 
     #: 이 CLI로 고를 수 있는 모델. 첫 항목이 기본값.
     models: list[tuple[str, str]] = []
+
+    #: True면 프롬프트를 명령줄 인자 대신 stdin으로 보낸다. build()는 프롬프트
+    #: 자리에 CLI의 stdin 표지를 둔다. Windows의 .CMD 래퍼는 cmd.exe가 인자를
+    #: 다시 해석해 여러 줄 중 첫 줄만 넘긴다(docs/decisions/003).
+    prompt_via_stdin: bool = False
 
     def __init__(self, key: str, name: str, cli: str, color: str, persona: str):
         self.key, self.name, self.cli = key, name, cli
@@ -197,19 +208,23 @@ class Member:
         exe = _which(cmd[0])
         if exe:
             cmd = [exe] + cmd[1:]
+        # 프롬프트를 stdin으로 보내는 참여자는 UTF-8 바이트로 쓴 뒤 닫는다.
+        # 바이트 모드로 여는 이유: 텍스트 모드는 Windows에서 stdin에 쓴 줄바꿈을
+        # CRLF로 바꿔 프롬프트가 바이트 그대로 가지 않는다(docs/decisions/003).
+        feed = prompt.encode("utf-8") if self.prompt_via_stdin else None
         try:
             p = subprocess.Popen(
                 # CLI 참여자에게는 API 키를 넘기지 않는다. 이들은 구독
                 # 로그인으로 인증하므로 키가 필요 없다.
                 cmd, cwd=workdir, env=_env(strip_secrets=True),
                 stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                # stdin 을 반드시 닫는다. 서버의 stdin 을 물려받으면 입력을
-                # 끝까지 읽는 CLI 가 시간 초과까지 멈춘다(가짜 CLI 로 재현,
-                # tests/test_cli_runtime.py). 수집 trace 의 실패 배너는 이것이
-                # 아니라 사용 한도 초과였고, 발언으로 남은 원인은 parse 였다
-                # (docs/decisions/001).
-                stdin=subprocess.DEVNULL,
-                text=True, encoding="utf-8", errors="replace",
+                # 서버의 stdin 을 물려받지 않는다. 물려받으면 입력을 끝까지
+                # 읽는 CLI 가 시간 초과까지 멈춘다(가짜 CLI 로 재현,
+                # tests/test_cli_runtime.py). 프롬프트를 보낼 참여자는 파이프를
+                # 열고 communicate()가 쓴 뒤 닫는다. 나머지는 처음부터 닫는다.
+                # 수집 trace 의 실패 배너는 stdin 이 아니라 사용 한도 초과였고,
+                # 발언으로 남은 원인은 parse 였다(docs/decisions/001).
+                stdin=subprocess.PIPE if feed is not None else subprocess.DEVNULL,
             )
         except FileNotFoundError:
             return f"[{self.cli} 를 찾을 수 없습니다]"
@@ -217,7 +232,8 @@ class Member:
         if cancel is not None:
             cancel.attach(p)
         try:
-            stdout, stderr = p.communicate(timeout=timeout)
+            out_b, err_b = p.communicate(input=feed, timeout=timeout)
+            stdout, stderr = _text(out_b), _text(err_b)
         except subprocess.TimeoutExpired:
             _kill(p)
             return f"[{self.name} 응답 시간 초과]"
@@ -236,6 +252,11 @@ class Member:
 
 class Codex(Member):
     """ChatGPT 구독으로 로그인된 codex CLI."""
+
+    # 프롬프트는 stdin으로 보낸다. `codex exec`는 프롬프트 자리에 `-`가 오면
+    # 지시를 stdin에서 읽는다(0.155.1 도움말). Windows의 npm 설치는 codex.CMD
+    # 래퍼라 인자로 보내면 첫 줄만 도착했다(docs/decisions/003).
+    prompt_via_stdin = True
 
     models = [
         ("", "설정값 따름"),
@@ -287,9 +308,11 @@ class Codex(Member):
             cmd += ["-o", str(self._out)]
         if self.model:
             cmd += ["-m", self.model]
+        # 프롬프트 본문은 ask()가 stdin으로 보낸다. `-`를 이미지 인자보다
+        # 앞에 두는 이유: -i가 값을 여러 개 받으면 뒤의 `-`를 이미지로 읽을 수 있다.
+        cmd.append("-")
         for img in images:
             cmd += ["-i", img]
-        cmd.append(prompt)
         return cmd
 
     _out: "Path | None" = None

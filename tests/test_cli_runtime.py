@@ -38,22 +38,26 @@ FAKE_CLI = textwrap.dedent('''
         sys.stderr.write(os.environ["FAKE_CLI_BANNER"])
         sys.exit(1)
     elif mode == "read_stdin":
-        data = sys.stdin.read()          # 입력이 열려 있으면 여기서 멈춘다
-        print("OpenAI Codex v0.155.1\\n--------\\ncodex\\n입력 " + str(len(data)) + "자를 읽고 답했다\\ntokens used\\n9")
+        data = sys.stdin.buffer.read().decode("utf-8")   # 입력이 열려 있으면 여기서 멈춘다
+        print("OpenAI Codex v0.155.1\\n--------\\ncodex\\n입력 " + str(len(data)) + "자를 읽고 답했다: " + data + "\\ntokens used\\n9")
     elif mode == "hang":
         time.sleep(60)
 ''')
 
 
 class FakeCodex(bridge.Codex):
-    """명령만 가짜 CLI로 바꾸고 ask·parse는 Codex 것을 그대로 쓴다."""
+    """실행 파일만 가짜 CLI로 바꾸고 build·ask·parse는 Codex 것을 그대로 쓴다.
+
+    Codex는 프롬프트를 명령줄이 아니라 stdin으로 보낸다(docs/decisions/003).
+    """
 
     def __init__(self, script: Path):
         super().__init__("A", "Codex", "codex", "a", "")
         self._script = script
 
     def build(self, prompt, workdir, images, json_mode=False):
-        return [sys.executable, str(self._script), prompt]
+        cmd = super().build(prompt, workdir, images, json_mode)
+        return [sys.executable, str(self._script)] + cmd[1:]
 
 
 @pytest.fixture()
@@ -96,13 +100,14 @@ PARENT = textwrap.dedent('''
 ''')
 
 
-def test_runtime_stdin_is_closed_even_if_server_stdin_stays_open(tmp_path):
-    """서버의 stdin이 열린 채로 있어도 CLI가 입력을 기다리지 않는다.
+def test_runtime_stdin_carries_prompt_then_closes_even_if_server_stdin_stays_open(tmp_path):
+    """서버의 stdin이 열린 채로 있어도 CLI는 프롬프트만 읽고 바로 답한다.
 
-    수정 전 코드는 stdin 인자를 주지 않아 CLI가 서버의 stdin을 물려받았다.
+    CLI의 stdin은 서버 것을 물려받지 않고, 프롬프트를 쓴 뒤 닫혀야 한다.
     그 조건을 만들려고, 닫히지 않는 파이프를 stdin으로 가진 부모 프로세스
-    안에서 ask()를 부른다. stdin을 물려받으면 가짜 CLI가 입력을 기다리다
-    시간 초과로 끝나고, 닫으면 바로 답한다.
+    안에서 ask()를 부른다. 서버 stdin을 물려받으면 가짜 CLI가 입력을 기다리다
+    시간 초과로 끝나고, 프롬프트를 쓰지 않으면 0자를 읽는다
+    (docs/decisions/001, 003).
     """
     import subprocess
     script = tmp_path / "fake_codex.py"
@@ -121,7 +126,7 @@ def test_runtime_stdin_is_closed_even_if_server_stdin_stays_open(tmp_path):
         p.stdin.close()
         p.wait(timeout=30)
     text = out.decode("utf-8", "replace").strip()
-    assert text == "입력 0자를 읽고 답했다", (text, err.decode("utf-8", "replace")[-300:])
+    assert text == "입력 2자를 읽고 답했다: 질문",(text, err.decode("utf-8", "replace")[-300:])
 
 
 def test_runtime_hanging_cli_times_out_as_error_marker(fake):
