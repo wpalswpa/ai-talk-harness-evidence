@@ -25,7 +25,7 @@ Codex 발언 10회 중 8회가 발언 자리에 Codex CLI의 실패 메시지로
 ## 고친 것
 
 - `stderr`는 발언으로 돌려주지 않는다. 본문이 비면 `stderr` 첫 줄을 담은 대괄호 오류 표시를 돌려주고(`is_error`로 구분), 서버는 이미 있던 오류 경로로 이를 대화 기록에서 빼고 경고만 남긴다(서버 코드는 이 저장소에 없다).
-- 모든 CLI 참여자를 `stdin=subprocess.DEVNULL`로 실행한다. 기록된 실패의 원인은 아니지만, 서버의 stdin을 물려받으면 입력을 끝까지 읽는 CLI가 시간 초과까지 멈추는 위험이 있어 예방으로 둔다.
+- 모든 CLI 참여자를 `stdin=subprocess.DEVNULL`로 실행한다. 기록된 실패의 원인은 아니지만, 서버의 stdin을 물려받으면 입력을 끝까지 읽는 CLI가 시간 초과까지 멈추는 위험이 있어 예방으로 둔다. 2026-10-11부터 Codex는 프롬프트를 stdin으로 받으므로, 파이프로 프롬프트를 쓴 뒤 닫는다(003). 서버 stdin을 물려받지 않는다는 점은 같다.
 - 이미 쌓인 기록은 고칠 수 없어, 실패 메시지 뒤에 내려진 사회자 판정 기록 6건을 걸러 15건으로 분석했다(원본의 `is_contaminated()`).
 
 ## 검사
@@ -33,7 +33,7 @@ Codex 발언 10회 중 8회가 발언 자리에 Codex CLI의 실패 메시지로
 | 검사 | 무엇을 보나 | 종류 |
 |---|---|---|
 | `test_codex_failure_does_not_become_speech`, `test_codex_real_output_still_returned` | 실패 출력은 오류 표시, 정상 출력은 그대로 | 파서 단위 |
-| `test_all_cli_members_close_stdin` | stdin 차단 설정이 코드에 있다 | 소스 문자열 |
+| `test_all_cli_members_close_stdin` | 모든 CLI 참여자가 서버 stdin을 물려받지 않는다(2026-10-11부터 Popen 인자를 가로채 확인, 그 전에는 소스 문자열 검사) | 호출 인자 |
 | `tests/test_cli_runtime.py` 4개(2026-10-04) | 가짜 CLI를 실제 프로세스로 띄워 정상 출력, 사용 한도 실패, 열린 stdin을 물려받는 경우, 응답 없음(시간 초과)을 `Member.ask()` 전체 경로로 확인 | 런타임 |
 
 런타임 검사는 옛 동작으로 되돌리면 실패하는 것을 확인했다(음성 대조). 오류 출력을 발언으로 돌려주게 되돌리면 사용 한도 검사가, stdin 인자를 빼 서버 stdin을 물려받게 하면 stdin 검사가 시간 초과로 실패한다.
