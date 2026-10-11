@@ -7,7 +7,7 @@
 | 만든 것 | 두 CLI(Claude Code·Codex)와 API 모델을 하위 프로세스로 묶고, 사회자 LLM의 JSON 판정으로 차례·종료를 정하는 실행 하네스(개인 도구) |
 | 고친 경계 | CLI 실패 출력이 정상 발언으로 저장되던 경로(Codex 발언 10회 중 8회) → 오류 경로로 분리, 가짜 CLI를 실제 프로세스로 띄운 런타임 시험으로 고정. Windows에서 Codex가 여러 줄 프롬프트의 첫 줄만 받던 경로(명령줄 인자가 npm `.CMD` 래퍼를 거침) → stdin 전달로 바꾸고 바이트 일치 시험으로 고정([결정 003](docs/decisions/003-codex-prompt-via-stdin.md)). 판정은 원문(raw)과 실제 쓴 값(effective)을 함께 저장, 못 잰 지연은 0이 아니라 비어 있음으로 기록 |
 | 자동화 판단 | 의논 종료를 학습 모델에 맡길지 실험했고, 상수 기준선(60%)을 넘지 못해(50%) 도입하지 않음([결정 002](docs/decisions/002-stop-automation-no-go.md)) |
-| 확인 방법 | `python -m pytest -q` → Windows 86 passed(Ubuntu는 Windows 전용 6개를 건너뜀), GitHub Actions Ubuntu·Windows |
+| 확인 방법 | `python -m pytest -q` → Windows 88 passed(Ubuntu는 Windows 전용 6개를 건너뜀), GitHub Actions Ubuntu·Windows |
 
 Claude Code와 Codex 세션은 서로의 맥락을 모릅니다. 직접 서비스를 만들며 한쪽에서 정한 것을 다른 쪽에 복사해 붙이는 일이 반복돼, 두 CLI와 API 모델을 한 대화방에 넣고 사회자 LLM이 "다음에 누가 말할지·무엇을 시킬지·끝낼지"를 JSON으로 판정하게 했습니다. 이 저장소는 2026-09-21부터 개발 중인 개인 프로젝트에서 첫 단계(대화방)의 핵심 모듈과 회귀 검사를 옮긴 것입니다. 원본 저장소는 비공개이고, 이 저장소에는 포트폴리오에서 설명한 부분만 그대로 옮겼습니다. 웹 서버·화면·대화 기록(SQLite)은 넣지 않았습니다.
 
@@ -22,7 +22,7 @@ Claude Code와 Codex 세션은 서로의 맥락을 모릅니다. 직접 서비�
 ## 바로 실행
 
 ```bash
-python -m pytest -q      # Windows 86 passed, 그 밖의 OS는 6 skipped (Python 3.12, pytest 외 외부 패키지 없음)
+python -m pytest -q      # Windows 88 passed, 그 밖의 OS는 6 skipped (Python 3.12, pytest 외 외부 패키지 없음)
 ```
 
 같은 검사를 GitHub Actions가 push마다 Ubuntu와 Windows에서 실행합니다([`.github/workflows/tests.yml`](.github/workflows/tests.yml)).
@@ -61,7 +61,7 @@ python -m pytest -q      # Windows 86 passed, 그 밖의 OS는 6 skipped (Python
 | 불변식 | 검사 |
 |---|---|
 | CLI 실패 메시지가 발언으로 기록되지 않고, 모든 CLI 참여자가 서버 stdin을 물려받지 않으며 프롬프트를 보낸 뒤 닫는다(decisions/001, 003) | `test_codex_failure_does_not_become_speech`, `test_all_cli_members_close_stdin` |
-| 실제 프로세스에서도 정상 출력은 발언, 사용 한도 실패는 오류 표시, 열린 서버 stdin과 상관없이 프롬프트만 읽고 끝남, 응답 없음은 시간 초과 표시 | `tests/test_cli_runtime.py` 4개. 이 중 옛 동작으로 되돌리면 실패하는 것은 사용 한도·stdin 2개다. 정상 출력은 기준선이고, 시간 초과 시험은 자식 프로세스를 죽이지 않게 바꿔도 통과한다 |
+| 실제 프로세스에서도 정상 출력은 발언, 사용 한도 실패는 오류 표시, 열린 서버 stdin과 상관없이 프롬프트만 읽고 끝남, 응답 없음은 시간 초과 표시 | `tests/test_cli_runtime.py` 6개. 긴 입력(9,000바이트·1MB)을 읽지 않는 CLI도 시간 초과로 중단하는 회귀 검사 2개 포함 |
 | Codex 프롬프트가 여러 줄·`%`·`&`·따옴표·9,000자에도 바이트 그대로 도착하고, 명령줄에는 실리지 않는다(decisions/003) | `tests/test_codex_prompt_delivery.py`. 인자 전달로 되돌리면 Windows `.CMD` 래퍼 경유 6개와 명령줄 검사 1개가 실패한다 |
 | 실패 코드가 서로 섞이지 않는다 | `test_controller_error_is_distinguished_from_parse_failure`, `test_alias_resolution_is_not_counted_as_fallback`, `test_alias_does_not_rescue_truly_invalid` |
 | 결정의 원본·보정본이 저장되고 상태를 복원할 수 있다 | `test_raw_and_effective_both_persisted`, `test_state_is_recoverable_for_dataset` |
@@ -87,7 +87,7 @@ python -m pytest -q      # Windows 86 passed, 그 밖의 OS는 6 skipped (Python
 
 ## 담당과 도구
 
-문제 정의, 구조, 측정 방법, 판정 기준(decisions/002의 최종 실행 전에 커밋한 도입 기준)은 본인이 정했고, 코드와 검사 작성에는 Claude Code와 Codex를 썼습니다. 이 저장소의 파일은 원본에서 복사했고, 서버 대조 검사 1개 제거, `bridge.py` 주석 1곳 정정, 런타임 검사 파일 추가(2026-10-04), Codex 프롬프트 stdin 전달 수정과 그 검사(2026-10-11, decisions/003) 외에는 고치지 않았습니다. 라이선스는 MIT입니다.
+문제 정의, 구조, 측정 방법, 판정 기준(decisions/002의 최종 실행 전에 커밋한 도입 기준)은 본인이 정했고, 코드와 검사 작성에는 Claude Code와 Codex를 썼습니다. 이 저장소의 파일은 원본에서 복사했고, 서버 대조 검사 1개 제거, `bridge.py` 주석 1곳 정정, 런타임 검사 파일 추가(2026-10-04), Codex 프롬프트 stdin 전달 수정과 그 검사 및 Windows 입력 쓰기 시간 제한 보완(2026-10-11~12, decisions/003) 외에는 고치지 않았습니다. 라이선스는 MIT입니다.
 
 ## 이후
 

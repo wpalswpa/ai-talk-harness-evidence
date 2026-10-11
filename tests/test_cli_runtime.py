@@ -134,3 +134,22 @@ def test_runtime_hanging_cli_times_out_as_error_marker(fake):
     out, elapsed = fake("hang", timeout=2)
     assert bridge.is_error(out) and "시간 초과" in out
     assert elapsed < 20
+
+
+@pytest.mark.parametrize("size", [9000, 1_000_000])
+def test_runtime_timeout_includes_blocked_stdin_write(tmp_path, monkeypatch, size):
+    """읽지 않는 CLI의 파이프 용량보다 큰 입력도 제한 시간 안에 중단한다."""
+    script = tmp_path / "no_read.py"
+    script.write_text("import time; time.sleep(3)", encoding="utf-8")
+
+    def kill_single_child(p):
+        p.kill()
+        p.wait(timeout=5)
+
+    # taskkill 시작 비용과 입력 쓰기의 시간 제한을 분리한다.
+    monkeypatch.setattr(bridge, "_kill", kill_single_child)
+    started = time.monotonic()
+    out = FakeCodex(script).ask("x" * size, str(tmp_path), [], timeout=0.2)
+    elapsed = time.monotonic() - started
+    assert "시간 초과" in out, (out, elapsed)
+    assert elapsed < 2.5, elapsed

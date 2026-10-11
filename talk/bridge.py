@@ -231,16 +231,34 @@ class Member:
 
         if cancel is not None:
             cancel.attach(p)
+        expired = threading.Event()
+        watchdog = None
+        if os.name == "nt" and feed is not None and timeout is not None:
+            # Windows communicate() writes stdin synchronously, before checking
+            # its timeout. A CLI that never reads can block even that check.
+            def expire():
+                if p.poll() is None:
+                    expired.set()
+                    _kill(p)
+
+            watchdog = threading.Timer(timeout, expire)
+            watchdog.daemon = True
+            watchdog.start()
         try:
-            out_b, err_b = p.communicate(input=feed, timeout=timeout)
+            out_b, err_b = p.communicate(input=feed, timeout=None if watchdog else timeout)
             stdout, stderr = _text(out_b), _text(err_b)
         except subprocess.TimeoutExpired:
             _kill(p)
             return f"[{self.name} 응답 시간 초과]"
         finally:
+            if watchdog is not None:
+                watchdog.cancel()
+                watchdog.join()
             if cancel is not None:
                 cancel.detach(p)
 
+        if expired.is_set():
+            return f"[{self.name} 응답 시간 초과]"
         if cancel is not None and cancel.is_set():
             return f"[{self.name} 중단됨]"
         out = self.parse(stdout, stderr, p.returncode)
