@@ -153,3 +153,25 @@ def test_runtime_timeout_includes_blocked_stdin_write(tmp_path, monkeypatch, siz
     elapsed = time.monotonic() - started
     assert "시간 초과" in out, (out, elapsed)
     assert elapsed < 2.5, elapsed
+
+
+def test_runtime_timeout_includes_inherited_output_pipe(tmp_path, monkeypatch):
+    """CLI가 끝나도 후손이 출력 파이프를 붙잡으면 시간 초과로 반환한다."""
+    script = tmp_path / "inherited_output.py"
+    script.write_text(
+        "import subprocess, sys\n"
+        "sys.stdin.buffer.read()\n"
+        "subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(5)'], "
+        "stdout=sys.stdout, stderr=sys.stderr)\n"
+        "print('parent done', flush=True)\n", encoding="utf-8")
+
+    def kill_single_child(p):
+        p.kill()
+        p.wait(timeout=5)
+
+    monkeypatch.setattr(bridge, "_kill", kill_single_child)
+    started = time.monotonic()
+    out = FakeCodex(script).ask("x", str(tmp_path), [], timeout=1.5)
+    elapsed = time.monotonic() - started
+    assert "시간 초과" in out, (out, elapsed)
+    assert elapsed < 4.5, elapsed

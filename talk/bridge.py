@@ -245,10 +245,14 @@ class Member:
             watchdog.daemon = True
             watchdog.start()
         try:
-            out_b, err_b = p.communicate(input=feed, timeout=None if watchdog else timeout)
+            out_b, err_b = p.communicate(input=feed, timeout=timeout)
             stdout, stderr = _text(out_b), _text(err_b)
         except subprocess.TimeoutExpired:
-            _kill(p)
+            if watchdog is not None:
+                watchdog.cancel()
+                watchdog.join()
+            if not expired.is_set():
+                _kill(p)
             return f"[{self.name} 응답 시간 초과]"
         finally:
             if watchdog is not None:
