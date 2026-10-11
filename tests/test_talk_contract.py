@@ -97,9 +97,51 @@ def test_codex_real_output_still_returned():
 
 
 def test_all_cli_members_close_stdin():
-    """stdin 을 열어 두면 CLI 가 입력을 기다리다 timeout 된다."""
-    src = (ROOT / "talk" / "bridge.py").read_text(encoding="utf-8")
-    assert "stdin=subprocess.DEVNULL" in src, "stdin 을 닫지 않는다"
+    """CLI 참여자는 서버 stdin 을 물려받지 않고, 프롬프트를 보낸 뒤 닫는다.
+
+    stdin 을 물려받거나 열어 두면 CLI 가 입력을 기다리다 timeout 된다
+    (decisions/001). Codex 는 프롬프트를 명령줄이 아니라 stdin 으로 받는다
+    (decisions/003). 실제 프로세스를 띄우지 않고 Popen 인자를 가로채 본다.
+    """
+    import subprocess
+
+    calls = []
+
+    class FakePopen:
+        returncode = 0
+
+        def __init__(self, cmd, **kw):
+            calls.append({"cmd": cmd, "kw": kw})
+
+        def communicate(self, input=None, timeout=None):
+            # communicate(input=...) 은 다 쓴 뒤 stdin 을 닫는다
+            calls[-1]["input"] = input
+            return b"", b""
+
+    prompt = "[과제] 첫 줄\n[네 역할] 둘째 줄"
+    orig = bridge.subprocess.Popen
+    bridge.subprocess.Popen = FakePopen
+    try:
+        cli = {k: m for k, m in bridge.MEMBERS.items()
+               if type(m).ask is bridge.Member.ask}
+        assert set(cli) >= {"A", "B"}, sorted(cli)
+        for k, m in cli.items():
+            calls.clear()
+            m.ask(prompt, ".", [], timeout=5)
+            assert len(calls) == 1, k
+            stdin = calls[0]["kw"].get("stdin")
+            assert stdin in (subprocess.DEVNULL, subprocess.PIPE), f"{k}: stdin={stdin!r}"
+            if stdin == subprocess.PIPE:
+                assert calls[0]["input"] == prompt.encode("utf-8"), k
+            else:
+                assert calls[0]["input"] is None, k
+        calls.clear()
+        bridge.MEMBERS["A"].ask(prompt, ".", [], timeout=5)
+        cmd = calls[0]["cmd"]
+        assert calls[0]["kw"]["stdin"] == subprocess.PIPE, "Codex 는 stdin 으로 받는다"
+        assert cmd[-1] == "-" and not any("첫 줄" in x for x in cmd), cmd
+    finally:
+        bridge.subprocess.Popen = orig
 
 
 if __name__ == "__main__":
