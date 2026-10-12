@@ -234,8 +234,10 @@ class Member:
         expired = threading.Event()
         watchdog = None
         if os.name == "nt" and feed is not None and timeout is not None:
-            # Windows communicate() writes stdin synchronously, before checking
-            # its timeout. A CLI that never reads can block even that check.
+            # Windows는 stdin 쓰기를 끝낸 뒤 communicate의 timeout을 확인한다.
+            # 입력을 읽지 않는 CLI도 끊기도록 쓰기 전에 별도 타이머를 시작한다.
+            # communicate의 timeout도 유지한다. CLI가 끝났더라도 후손이 stdout을
+            # 잡고 있으면 출력 수집이 끝나지 않을 수 있다(결정 003, 런타임 회귀 검사).
             def expire():
                 if p.poll() is None:
                     expired.set()
@@ -248,6 +250,7 @@ class Member:
             out_b, err_b = p.communicate(input=feed, timeout=timeout)
             stdout, stderr = _text(out_b), _text(err_b)
         except subprocess.TimeoutExpired:
+            # 타이머 콜백이 끝날 때까지 기다려 같은 프로세스를 중복 종료하지 않는다.
             if watchdog is not None:
                 watchdog.cancel()
                 watchdog.join()
